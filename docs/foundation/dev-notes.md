@@ -21,7 +21,11 @@
 
 | 変更内容 | 理由 |
 |----------|------|
-| （なし：実装未着手） | — |
+| `StsGame` を libGDX `Game` でなく `ApplicationAdapter`＋自作 `GameScreen`/`ScreenManager` に | libGDX の `Screen` は GL 前提でスタックlogic を単体テストしづらい。自作の軽量 `GameScreen` にすることで ScreenManager をヘッドレスで決定的にテスト可能にした（4 件 PASS） |
+| ビルドは単一 Gradle モジュール（core/lwjgl3 分割なし） | デスクトップ専用のため分割不要。`com.stsporting.lwjgl3.DesktopLauncher` を application mainClass に |
+| Gradle は toolchain でなく sourceCompatibility=17 | 稼働 JVM が JDK17 のため、toolchain 自動プロビジョニング（ネットワーク取得）を避けて確実にビルド |
+| UI ラベルは当面 ASCII（"New Run" 等） | バンドルの libGDX 標準フォントに日本語グリフが無く豆腐になるため。日本語フォント導入までの暫定 |
+| Gradle 8.7 を採用（apt 版は古い） | libGDX 1.12.1 は Gradle 8 系が必要。Dockerfile でバイナリ配布を導入 |
 
 ## 今後の課題
 
@@ -31,5 +35,6 @@
 
 ## ユーザへの要望
 
-- **開発環境**: この devcontainer には JDK / Gradle が未導入。実装着手には JDK 17 と Gradle（wrapper 同梱予定）の導入が必要。devcontainer の Dockerfile に追加してよいか確認したい。
-- **実機確認**: GUI を伴う最終動作確認は Windows 側で行う必要がある。ビルド成果物（.exe または `gradlew run`）を Windows で実行できる環境の用意をお願いしたい。
+- **開発環境**: 解決済み。Dockerfile に JDK 17・Gradle 8.7 を追加し、稼働コンテナにも導入。Gradle wrapper（`gradlew`）同梱済みで `./gradlew test` がヘッドレスで通る。
+- **実機確認**: GUI を伴う起動確認（`gradlew run` / 生成 .exe）は Windows 側で実施が必要。Linux 開発環境ではコンパイル＋ヘッドレステストまでを担保。
+  - Windows での確認手順: リポジトリを clone → `gradlew.bat run`（JDK 17 が必要）。ウィンドウにメインメニューが出れば OK。
