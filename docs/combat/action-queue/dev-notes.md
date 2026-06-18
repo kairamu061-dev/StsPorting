@@ -14,13 +14,16 @@
 
 | 問題 | 対処 |
 |------|------|
-| （実装未着手） | — |
+| action-queue と powers が相互依存（DamageAction が修正値を powers から取得、Thorns が DamageAction を割り込み生成） | 両者を同時に実装。AbstractPower 基底＋コアパワー（筋力/弱体/脆弱/とげ/中毒/金属化/再生）を action-queue と一括で実装し、DamageAction の解決順をテストで担保 |
+| カード pile 系アクション（Draw/Discard/Exhaust）は AbstractCard 前提 | cards サブ項目に委譲。action-queue 段階では Creature/パワー系アクションに限定し、cardQueue/queueCard も cards 実装時に追加 |
 
 ## 設計からの変更点
 
 | 変更内容 | 理由 |
 |----------|------|
-| （なし） | — |
+| `update()` は cardQueue を未実装（action queue のみ） | cards 未実装のため。設計の cardQueue/queueCard は cards サブ項目で追加する（API 互換で拡張予定） |
+| 実テスト用ヘルパ `runToCompletion()`（delta=1f で収束まで回す）を ActionManager に追加 | ヘッドレスで解決順・割り込み・duration を決定的に検証するため。無限ループ防止のガード付き |
+| コアパワーを action-queue と同時に combat/powers に実装 | 相互依存のため。powers サブ項目のタスクの一部を前倒しで完了（powers/tasks に反映予定） |
 
 ## 今後の課題
 
