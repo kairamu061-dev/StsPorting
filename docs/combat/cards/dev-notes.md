@@ -14,13 +14,16 @@
 
 | 問題 | 対処 |
 |------|------|
-| （実装未着手） | — |
+| pile アクション（Draw/Discard/Exhaust）を action と card のどちらに置くか（循環依存懸念） | これらは AbstractCard を操作するため card パッケージに配置（card→action の単方向）。action パッケージは card を import しない。設計では action/common に置く想定だったが、依存方向を整理して card 側へ |
+| `queueCard`/cardQueue を ActionManager に持たせると action→card 依存が生じる | ActionManager には持たせず、`PlayCardFlow.resolve(mgr, card, target)` を入力層から直接呼ぶ方式に。CardQueueItem は入力層用の小ホルダとして card パッケージに用意 |
 
 ## 設計からの変更点
 
 | 変更内容 | 理由 |
 |----------|------|
-| （なし） | — |
+| 4 pile を `CardPiles` クラスでなく `CombatState` のフィールドに直接保持 | 戦闘状態の一部として一元管理する方が素直で、アクションからの参照も簡潔 |
+| エネルギー消費は当面 `CombatState.energy` を直接操作 | turn-flow の EnergyManager 未実装のため。X コストと共に turn-flow 実装時に EnergyManager へ移譲 |
+| `use(target, mgr)` シグネチャ（mgr をフィールドでなく引数で渡す） | カードを mgr 非依存のステートレスに保ち、content 実装をシンプルにする |
 
 ## 今後の課題
 
