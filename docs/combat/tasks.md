@@ -35,4 +35,7 @@
 
 ## ステータス
 
-Todo（親ドキュメント整備完了・7 サブ項目へ分割済み。サブ項目の詳細は順次整備、action-queue を最優先）
+In progress（縦の動線が成立：action-queue / powers / cards / enemy / turn-flow を実装し、
+content（初期デッキ＋Cultist）と `CombatScreen` を配線。実コンテンツで1戦闘を勝利まで通す
+ヘッドレス統合テストが PASS（全49テスト緑）。input/effects は簡易版で、本実装（弧状手札・
+ドラッグ・本格演出）と GUI 実機確認が次段）

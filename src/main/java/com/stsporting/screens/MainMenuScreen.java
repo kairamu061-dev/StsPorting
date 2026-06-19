@@ -45,7 +45,7 @@ public class MainMenuScreen implements GameScreen, InputConsumer {
         float cx = (ViewportConfig.VIRTUAL_WIDTH - BTN_W) / 2f;
         this.buttons = new Button[] {
                 new Button("New Run", new Rectangle(cx, 560, BTN_W, BTN_H),
-                        () -> ctx.screens.replace(new PlaceholderGameScreen(ctx))),
+                        () -> ctx.screens.replace(new CombatScreen(ctx))),
                 new Button("Settings", new Rectangle(cx, 450, BTN_W, BTN_H),
                         () -> { /* placeholder; settings UI is optional/future */ }),
                 new Button("Quit", new Rectangle(cx, 340, BTN_W, BTN_H),
