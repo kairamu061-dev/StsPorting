@@ -4,16 +4,18 @@
 
 <!-- ステータス: [ ] 未着手 / [~] 進行中 / [x] 完了 -->
 
-- [ ] `InputState` enum・`CombatInputController`（InputConsumer 実装）
-- [ ] `HandLayout`（弧状配置・位置/角度/当たり矩形・ホバー拡大）
-- [ ] `HitTester`（カード/敵/ボタン/ポーション）
-- [ ] ホバー処理（最前面カード選択・拡大前面化）
-- [ ] ドラッグ（DRAGGING/TARGETING 分岐・カーソル追従）
-- [ ] リリース確定（対象なし=上方向閾値、単体=敵ドロップ、cancel）
-- [ ] `PlayIntentResolver`（queueCard 連携・プレイ不可フィードバック合図）
-- [ ] ポーション使用・ターン終了（requestEndTurn）
-- [ ] 入力可否制御（解決中は無効）
-- [ ] テスト（ヒットテスト・状態遷移・閾値判定）＋実機での手触り確認
+- [x] `InputState` enum・`CombatInputController`（仮想座標イベントを受ける）
+- [x] `HandLayout`（弧状配置・位置/角度/当たり矩形・ホバー拡大用 Pose）
+- [x] ヒットテスト（カード：最前面優先／敵：TargetResolver）
+- [x] ホバー処理（カード選択・拡大前面化は CombatScreen 描画）
+- [x] ドラッグ（DRAGGING/TARGETING 分岐・カーソル追従＝touchDragged→onMouseMoved）
+- [x] リリース確定（対象なし=上方向閾値、単体=敵ドロップ、cancel）
+- [x] プレイ不可フィードバック合図（lastPlayRejected）＋ queueCard 経由不要化（PlayCardFlow 直結）
+- [x] ターン終了（requestEndTurn は CombatScreen のボタン）
+- [x] 入力可否制御（isPlayerInputAllowed 連動）
+- [x] テスト（弧状配置・状態遷移・上方向閾値・敵ドロップ・エネ不足・hover）— 11件 PASS
+- [ ] ポーション使用 UI（run のポーション管理実装時）
+- [ ] カード回転描画・整列補間など見た目の作り込み＋実機での手触り調整
 
 ## 依存関係
 
@@ -23,5 +25,6 @@
 
 ## ステータス
 
-In progress（縦の動線用に CombatScreen 内へ簡易クリック操作（カード選択→敵クリック／自己即時・End Turn）を実装。
-弧状手札・ドラッグ＆ドロップ・対象矢印・状態機械の本実装と実機での手触り調整は次段）
+In progress（状態機械・弧状手札・ドラッグ＆ドロップ・上方向閾値/敵ドロップ確定・対象矢印・ホバー拡大を実装。
+ロジックは 11 件のヘッドレステストで担保。CombatScreen に統合済み。
+カード回転描画/整列補間の作り込みとポーション UI、実機での手触り調整が次段）

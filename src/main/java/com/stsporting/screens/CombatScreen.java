@@ -9,13 +9,16 @@ import com.badlogic.gdx.math.Rectangle;
 import com.stsporting.combat.CombatState;
 import com.stsporting.combat.action.ActionManager;
 import com.stsporting.combat.card.AbstractCard;
-import com.stsporting.combat.card.CardTarget;
-import com.stsporting.combat.card.PlayCardFlow;
 import com.stsporting.combat.creature.Creature;
 import com.stsporting.combat.creature.Player;
 import com.stsporting.combat.creature.enemy.AbstractMonster;
 import com.stsporting.combat.creature.enemy.Intent;
 import com.stsporting.combat.flow.TurnController;
+import com.stsporting.combat.input.CombatInputController;
+import com.stsporting.combat.input.HandLayout;
+import com.stsporting.combat.input.InputState;
+import com.stsporting.combat.input.Pose;
+import com.stsporting.combat.input.TargetResolver;
 import com.stsporting.content.cards.CardLibrary;
 import com.stsporting.content.monsters.MonsterId;
 import com.stsporting.content.monsters.MonsterLibrary;
@@ -26,12 +29,14 @@ import com.stsporting.render.ViewportConfig;
 import java.util.Random;
 
 /**
- * A playable single combat: sets up the player's starter deck against one
- * enemy and drives {@link TurnController}. Click a card to play it (targeted
- * attacks then click the enemy); click End Turn to pass. Minimal rendering —
- * the full effects layer is future work; this proves the vertical slice.
+ * A playable single combat: starter deck vs one enemy, driven by
+ * {@link TurnController}. Hand input (hover-lift, drag-to-play, target arrow)
+ * is handled by {@link CombatInputController}; rendering is still minimal
+ * (shapes + text) pending the full effects layer.
  */
 public class CombatScreen implements GameScreen, InputConsumer {
+    private static final float PLAY_THRESHOLD_Y = 430f;
+
     private final GameContext ctx;
     private final ShapeRenderer shapes = new ShapeRenderer();
     private final GlyphLayout layout = new GlyphLayout();
@@ -39,12 +44,11 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final CombatState state;
     private final ActionManager mgr;
     private final TurnController tc;
+    private final HandLayout hand = new HandLayout();
+    private final CombatInputController input;
 
     private final Rectangle endTurnBtn = new Rectangle(1600, 130, 260, 90);
     private final Rectangle enemyBox = new Rectangle(1150, 600, 360, 260);
-    private final Rectangle[] handRects = new Rectangle[CombatState.MAX_HAND];
-
-    private AbstractCard selectedCard; // pending targeted card
 
     public CombatScreen(GameContext ctx) {
         this.ctx = ctx;
@@ -56,6 +60,12 @@ public class CombatScreen implements GameScreen, InputConsumer {
         this.state.enemies.add(enemy);
         this.mgr = new ActionManager(state);
         this.tc = new TurnController(state, mgr);
+        TargetResolver targets = (vx, vy) -> {
+            Creature e = firstEnemy();
+            return (e != null && !e.isDead() && enemyBox.contains(vx, vy)) ? e : null;
+        };
+        this.input = new CombatInputController(state, mgr, hand, targets,
+                PLAY_THRESHOLD_Y, tc::isPlayerInputAllowed);
     }
 
     @Override
@@ -77,29 +87,42 @@ public class CombatScreen implements GameScreen, InputConsumer {
         return state.enemies.isEmpty() ? null : state.enemies.get(0);
     }
 
+    /** Render rectangle for a hand card, accounting for hover lift and drag. */
+    private Rectangle cardRect(int index, AbstractCard card) {
+        int n = state.hand.size();
+        float w = hand.cardW;
+        float h = hand.cardH;
+        if (card == input.draggingCard()) {
+            return new Rectangle(input.dragX() - w / 2f, input.dragY() - h / 2f, w, h);
+        }
+        Pose p = hand.poseFor(index, n);
+        boolean hov = card == input.hoveredCard() && input.state() == InputState.HOVER;
+        float scale = hov ? 1.18f : 1f;
+        float lift = hov ? 60f : 0f;
+        float ww = w * scale;
+        float hh = h * scale;
+        return new Rectangle(p.x - ww / 2f, p.y - hh / 2f + lift, ww, hh);
+    }
+
     private void drawShapes() {
         shapes.setProjectionMatrix(ctx.camera.combined);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
 
-        // Enemy box
         Creature enemy = firstEnemy();
         if (enemy != null && !enemy.isDead()) {
             shapes.setColor(0.30f, 0.12f, 0.12f, 1f);
             shapes.rect(enemyBox.x, enemyBox.y, enemyBox.width, enemyBox.height);
         }
 
-        // Player box
         shapes.setColor(0.12f, 0.18f, 0.26f, 1f);
         shapes.rect(220, 380, 360, 220);
 
-        // Hand cards
         int n = state.hand.size();
         for (int i = 0; i < n; i++) {
-            Rectangle r = handRect(i, n);
-            handRects[i] = r;
             AbstractCard c = state.hand.get(i);
+            Rectangle r = cardRect(i, c);
             boolean playable = state.energy >= c.cost();
-            if (c == selectedCard) {
+            if (c == input.draggingCard()) {
                 shapes.setColor(0.55f, 0.42f, 0.20f, 1f);
             } else if (playable) {
                 shapes.setColor(0.24f, 0.20f, 0.14f, 1f);
@@ -109,11 +132,21 @@ public class CombatScreen implements GameScreen, InputConsumer {
             shapes.rect(r.x, r.y, r.width, r.height);
         }
 
-        // End turn button
         shapes.setColor(0.20f, 0.16f, 0.10f, 1f);
         shapes.rect(endTurnBtn.x, endTurnBtn.y, endTurnBtn.width, endTurnBtn.height);
-
         shapes.end();
+
+        // Targeting arrow.
+        if (input.state() == InputState.TARGETING && input.draggingCard() != null) {
+            int idx = state.hand.indexOf(input.draggingCard());
+            if (idx >= 0) {
+                Pose origin = hand.poseFor(idx, n);
+                shapes.begin(ShapeRenderer.ShapeType.Line);
+                shapes.setColor(0.9f, 0.75f, 0.3f, 1f);
+                shapes.line(origin.x, origin.y, input.dragX(), input.dragY());
+                shapes.end();
+            }
+        }
     }
 
     private void drawText() {
@@ -138,24 +171,16 @@ public class CombatScreen implements GameScreen, InputConsumer {
         text(font, "Energy " + state.energy + "/" + state.maxEnergy, 240, 250);
         text(font, "Draw " + state.drawPile.size() + "   Discard " + state.discardPile.size(), 240, 200);
 
-        // Hand labels
-        font.getData().setScale(1.4f);
+        font.getData().setScale(1.3f);
         int n = state.hand.size();
         for (int i = 0; i < n; i++) {
-            Rectangle r = handRects[i];
-            if (r == null) {
-                continue;
-            }
             AbstractCard c = state.hand.get(i);
-            text(font, "(" + c.cost() + ") " + c.name, r.x + 12, r.y + r.height - 24);
+            Rectangle r = cardRect(i, c);
+            text(font, "(" + c.cost() + ") " + c.name, r.x + 12, r.y + r.height - 22);
         }
 
         font.getData().setScale(1.8f);
         text(font, "End Turn", endTurnBtn.x + 30, endTurnBtn.y + 58);
-
-        if (!tc.isPlayerInputAllowed() && !over()) {
-            text(font, "...", 940, 540);
-        }
 
         if (over()) {
             font.getData().setScale(3f);
@@ -187,56 +212,27 @@ public class CombatScreen implements GameScreen, InputConsumer {
         }
     }
 
-    private Rectangle handRect(int index, int count) {
-        float w = 200f;
-        float h = 280f;
-        float gap = 20f;
-        float totalW = count * w + (count - 1) * gap;
-        float startX = (ViewportConfig.VIRTUAL_WIDTH - totalW) / 2f;
-        return new Rectangle(startX + index * (w + gap), 40, w, h);
-    }
-
     @Override
     public boolean onTouchDown(float vx, float vy, int button) {
         if (over()) {
             return false;
         }
-        if (!tc.isPlayerInputAllowed()) {
-            return false;
-        }
-        // End turn
-        if (endTurnBtn.contains(vx, vy)) {
-            selectedCard = null;
+        if (tc.isPlayerInputAllowed() && endTurnBtn.contains(vx, vy)) {
             tc.requestEndTurn();
             return true;
         }
-        // Enemy click resolves a pending targeted card
-        Creature enemy = firstEnemy();
-        if (selectedCard != null && enemy != null && enemyBox.contains(vx, vy)) {
-            PlayCardFlow.resolve(mgr, selectedCard, enemy);
-            selectedCard = null;
-            return true;
-        }
-        // Card click
-        int n = state.hand.size();
-        for (int i = 0; i < n; i++) {
-            Rectangle r = handRects[i];
-            if (r != null && r.contains(vx, vy)) {
-                AbstractCard c = state.hand.get(i);
-                if (state.energy < c.cost()) {
-                    return true; // not enough energy
-                }
-                if (c.target == CardTarget.ENEMY) {
-                    selectedCard = c; // await enemy click
-                } else {
-                    PlayCardFlow.resolve(mgr, c, null);
-                    selectedCard = null;
-                }
-                return true;
-            }
-        }
-        selectedCard = null;
-        return true;
+        return input.onTouchDown(vx, vy);
+    }
+
+    @Override
+    public boolean onTouchUp(float vx, float vy, int button) {
+        return input.onTouchUp(vx, vy);
+    }
+
+    @Override
+    public boolean onMouseMoved(float vx, float vy) {
+        input.onMouseMoved(vx, vy);
+        return false;
     }
 
     @Override
@@ -245,16 +241,6 @@ public class CombatScreen implements GameScreen, InputConsumer {
             ctx.screens.replace(new MainMenuScreen(ctx));
             return true;
         }
-        return false;
-    }
-
-    @Override
-    public boolean onTouchUp(float vx, float vy, int button) {
-        return false;
-    }
-
-    @Override
-    public boolean onMouseMoved(float vx, float vy) {
         return false;
     }
 
