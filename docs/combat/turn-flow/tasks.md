@@ -4,14 +4,15 @@
 
 <!-- ステータス: [ ] 未着手 / [~] 進行中 / [x] 完了 -->
 
-- [ ] `Phase` enum と `TurnController` 骨組み（isIdle 連動の遷移）
-- [ ] `EnergyManager`（最大/回復/消費/X コスト）
-- [ ] 戦闘開始処理（シャッフル・開始フック・初期ドロー）
-- [ ] プレイヤーターン開始（ブロックリセット・atTurnStart・エネ回復・ドロー）
-- [ ] ターン終了処理（atTurnEnd・手札処理）と requestEndTurn
-- [ ] 敵ターン処理（各敵 atTurnStart→takeTurn→atTurnEnd・次インテント）
-- [ ] 各遷移点の勝敗チェックと FINISHED
-- [ ] ヘッドレステスト（1 ターン進行・フック順・エネ回復・勝敗遷移）
+- [x] `Phase` enum と `TurnController`（isIdle 連動の遷移）
+- [x] `EnergyManager`（最大/回復/消費/spendAll）
+- [x] 戦闘開始処理（シャッフル・初期ドロー）※レリック開始フックは relics 接続時
+- [x] プレイヤーターン開始（ブロックリセット・atStartOfTurn・エネ回復・ドロー）
+- [x] ターン終了処理（atEndOfTurn・弱体/脆弱の減衰・手札捨て）と requestEndTurn
+- [x] 敵ターン処理（各敵 block リセット→atStartOfTurn→takeTurn→atEndOfTurn→減衰→次インテント）
+- [x] 勝敗チェック（idle 時に判定）と FINISHED
+- [x] ヘッドレステスト（開幕ドロー/エネ・ターン終了→敵攻撃・ブロックリセット・弱体減衰・勝敗）— 6件 PASS
+- [ ] X コスト・onUseCard 発火・手札保持(Retain) ← cards/powers/relics 接続時
 
 ## 依存関係
 
@@ -21,4 +22,5 @@
 
 ## ステータス
 
-Todo（ドキュメント整備完了。action-queue の次に着手）
+In progress（フェーズ機械・エネルギー・ターン境界フック・勝敗判定 実装＋テスト完了。
+レリック開始フック/X コスト/Retain は各接続時に対応）

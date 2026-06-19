@@ -18,6 +18,7 @@ public class CombatState {
     public Player player;
     public final List<Creature> enemies = new ArrayList<>();
     public int energy;
+    public int maxEnergy = 3;
     public int turn;
 
     // Card piles. "Top" of the draw pile is the last element.
