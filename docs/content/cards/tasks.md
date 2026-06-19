@@ -21,4 +21,5 @@
 
 ## ステータス
 
-Todo（ドキュメント整備完了。content の最優先＝戦闘を動かす最小セット）
+In progress（CardId/CardLibrary＋初期デッキ Strike/Defend/Bash 実装・テスト完了。
+報酬カード・プール・追加カードは段階拡張）

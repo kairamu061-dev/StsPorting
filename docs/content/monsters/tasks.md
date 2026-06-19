@@ -23,4 +23,5 @@
 
 ## ステータス
 
-Todo（ドキュメント整備完了。content/cards と合わせ「1戦闘通し」の最小セット）
+In progress（MonsterId/MonsterLibrary＋Cultist(儀式→攻撃)/JawWorm(混合AI) 実装・テスト完了。
+エリート/ボス・エンカウンターテーブルは段階拡張）
