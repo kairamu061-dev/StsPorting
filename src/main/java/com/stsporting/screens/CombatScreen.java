@@ -32,6 +32,9 @@ import com.stsporting.core.GameContext;
 import com.stsporting.core.GameScreen;
 import com.stsporting.core.InputConsumer;
 import com.stsporting.render.ViewportConfig;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -54,6 +57,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final CombatInputController input;
     private final EffectManager fx = new EffectManager();
     private final ScreenShake shake = new ScreenShake();
+    private static final float FLASH_TIME = 0.2f;
+    private final Map<Creature, Float> flashTimers = new HashMap<>();
 
     private final Rectangle endTurnBtn = new Rectangle(1600, 130, 260, 90);
     private final Rectangle enemyBox = new Rectangle(1150, 600, 360, 260);
@@ -82,6 +87,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
         return new CombatListener() {
             @Override
             public void onDamageDealt(Creature target, int hpDamage, DamageType type) {
+                flashTimers.put(target, FLASH_TIME); // flash even on blocked hits
                 if (hpDamage <= 0) {
                     return;
                 }
@@ -104,6 +110,25 @@ public class CombatScreen implements GameScreen, InputConsumer {
         };
     }
 
+    private void updateFlashes(float delta) {
+        Iterator<Map.Entry<Creature, Float>> it = flashTimers.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Creature, Float> e = it.next();
+            float t = e.getValue() - delta;
+            if (t <= 0f) {
+                it.remove();
+            } else {
+                e.setValue(t);
+            }
+        }
+    }
+
+    /** 0..1 flash strength for a creature (1 = just hit). */
+    private float flash(Creature c) {
+        Float t = flashTimers.get(c);
+        return t == null ? 0f : Math.max(0f, t / FLASH_TIME);
+    }
+
     private Vector2 posFor(Creature c) {
         if (c == state.player) {
             return new Vector2(playerBox.x + playerBox.width / 2f, playerBox.y + playerBox.height / 2f);
@@ -120,6 +145,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
         tc.update(delta);
         fx.update(delta);
         shake.update(delta);
+        updateFlashes(delta);
 
         // Apply screen shake by offsetting the (centred) camera, then restore.
         float ox = shake.offsetX();
@@ -167,12 +193,12 @@ public class CombatScreen implements GameScreen, InputConsumer {
 
         Creature enemy = firstEnemy();
         if (enemy != null && !enemy.isDead()) {
-            shapes.setColor(0.30f, 0.12f, 0.12f, 1f);
+            setFlashed(0.30f, 0.12f, 0.12f, flash(enemy));
             shapes.rect(enemyBox.x, enemyBox.y, enemyBox.width, enemyBox.height);
         }
 
-        shapes.setColor(0.12f, 0.18f, 0.26f, 1f);
-        shapes.rect(220, 380, 360, 220);
+        setFlashed(0.12f, 0.18f, 0.26f, state.player == null ? 0f : flash(state.player));
+        shapes.rect(playerBox.x, playerBox.y, playerBox.width, playerBox.height);
 
         int n = state.hand.size();
         for (int i = 0; i < n; i++) {
@@ -204,6 +230,12 @@ public class CombatScreen implements GameScreen, InputConsumer {
                 shapes.end();
             }
         }
+    }
+
+    /** Set the shape colour, blended toward white by the flash strength. */
+    private void setFlashed(float r, float g, float b, float flash) {
+        float k = flash * 0.7f;
+        shapes.setColor(r + (1f - r) * k, g + (1f - g) * k, b + (1f - b) * k, 1f);
     }
 
     private void drawText() {
