@@ -72,6 +72,10 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final List<FlyingCard> flying = new ArrayList<>();
     private List<AbstractCard> prevHand = new ArrayList<>();
 
+    private TurnController.Phase lastPhase;
+    private String bannerText = "";
+    private float bannerTimer;
+
     private static final class FlyingCard {
         final float sx;
         final float sy;
@@ -139,6 +143,23 @@ public class CombatScreen implements GameScreen, InputConsumer {
         };
     }
 
+    private void updateTurnBanner(float delta) {
+        TurnController.Phase ph = tc.phase();
+        if (ph != lastPhase) {
+            if (ph == TurnController.Phase.PLAYER) {
+                bannerText = "Your Turn";
+                bannerTimer = 1.1f;
+            } else if (ph == TurnController.Phase.ENEMY) {
+                bannerText = "Enemy Turn";
+                bannerTimer = 1.1f;
+            }
+            lastPhase = ph;
+        }
+        if (bannerTimer > 0f) {
+            bannerTimer -= delta;
+        }
+    }
+
     private void spawnFlyingForPlayedCards() {
         for (AbstractCard c : prevHand) {
             if (!state.hand.contains(c)) {
@@ -193,6 +214,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
             }
         }
         prevHand = new ArrayList<>(state.hand);
+        updateTurnBanner(delta);
 
         // Apply screen shake by offsetting the (centred) camera, then restore.
         float ox = shake.offsetX();
@@ -429,6 +451,14 @@ public class CombatScreen implements GameScreen, InputConsumer {
 
         font.getData().setScale(1.8f);
         text(font, "End Turn", endTurnBtn.x + 30, endTurnBtn.y + 58);
+
+        if (bannerTimer > 0f && !over()) {
+            font.getData().setScale(3.4f);
+            font.setColor(1f, 1f, 1f, Math.min(1f, bannerTimer));
+            layout.setText(font, bannerText);
+            font.draw(ctx.batch, layout, (ViewportConfig.VIRTUAL_WIDTH - layout.width) / 2f, 720);
+            font.setColor(Color.WHITE);
+        }
 
         if (over()) {
             font.getData().setScale(3f);
