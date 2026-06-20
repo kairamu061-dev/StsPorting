@@ -32,8 +32,10 @@ import com.stsporting.core.GameContext;
 import com.stsporting.core.GameScreen;
 import com.stsporting.core.InputConsumer;
 import com.stsporting.render.ViewportConfig;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -60,6 +62,30 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final ScreenShake shake = new ScreenShake();
     private static final float FLASH_TIME = 0.2f;
     private final Map<Creature, Float> flashTimers = new HashMap<>();
+
+    // Cards that have left the hand, flying toward the discard pile.
+    private static final float FLY_TIME = 0.35f;
+    private static final float DISCARD_X = 1780f;
+    private static final float DISCARD_Y = 150f;
+    private final List<FlyingCard> flying = new ArrayList<>();
+    private List<AbstractCard> prevHand = new ArrayList<>();
+
+    private static final class FlyingCard {
+        final float sx;
+        final float sy;
+        final String label;
+        float t;
+
+        FlyingCard(float sx, float sy, String label) {
+            this.sx = sx;
+            this.sy = sy;
+            this.label = label;
+        }
+
+        float p() {
+            return Math.min(1f, t / FLY_TIME);
+        }
+    }
 
     private final Rectangle endTurnBtn = new Rectangle(1600, 130, 260, 90);
     private final Rectangle enemyBox = new Rectangle(1150, 600, 360, 260);
@@ -111,6 +137,14 @@ public class CombatScreen implements GameScreen, InputConsumer {
         };
     }
 
+    private void spawnFlyingForPlayedCards() {
+        for (AbstractCard c : prevHand) {
+            if (!state.hand.contains(c)) {
+                flying.add(new FlyingCard(cardAnim.x(c), cardAnim.y(c), "(" + c.cost() + ") " + c.name));
+            }
+        }
+    }
+
     private void updateFlashes(float delta) {
         Iterator<Map.Entry<Creature, Float>> it = flashTimers.entrySet().iterator();
         while (it.hasNext()) {
@@ -147,7 +181,16 @@ public class CombatScreen implements GameScreen, InputConsumer {
         fx.update(delta);
         shake.update(delta);
         updateFlashes(delta);
+        spawnFlyingForPlayedCards();
         cardAnim.update(state.hand, hand, delta);
+        for (int i = flying.size() - 1; i >= 0; i--) {
+            FlyingCard f = flying.get(i);
+            f.t += delta;
+            if (f.t >= FLY_TIME) {
+                flying.remove(i);
+            }
+        }
+        prevHand = new ArrayList<>(state.hand);
 
         // Apply screen shake by offsetting the (centred) camera, then restore.
         float ox = shake.offsetX();
@@ -217,6 +260,18 @@ public class CombatScreen implements GameScreen, InputConsumer {
             shapes.rect(r.x, r.y, r.width, r.height);
         }
 
+        // Flying (played/discarded) cards shrinking toward the discard pile.
+        for (FlyingCard f : flying) {
+            float p = f.p();
+            float s = 1f - 0.7f * p;
+            float w = hand.cardW * s;
+            float h = hand.cardH * s;
+            float x = f.sx + (DISCARD_X - f.sx) * p;
+            float y = f.sy + (DISCARD_Y - f.sy) * p;
+            shapes.setColor(0.24f, 0.20f, 0.14f, 1f);
+            shapes.rect(x - w / 2f, y - h / 2f, w, h);
+        }
+
         shapes.setColor(0.20f, 0.16f, 0.10f, 1f);
         shapes.rect(endTurnBtn.x, endTurnBtn.y, endTurnBtn.width, endTurnBtn.height);
         shapes.end();
@@ -263,6 +318,14 @@ public class CombatScreen implements GameScreen, InputConsumer {
         for (AbstractCard c : state.hand) {
             Rectangle r = cardRect(c);
             text(font, "(" + c.cost() + ") " + c.name, r.x + 12, r.y + r.height - 22);
+        }
+        for (FlyingCard f : flying) {
+            float fp = f.p();
+            float x = f.sx + (DISCARD_X - f.sx) * fp;
+            float y = f.sy + (DISCARD_Y - f.sy) * fp;
+            font.setColor(1f, 1f, 1f, 1f - fp);
+            text(font, f.label, x - 80, y + 40);
+            font.setColor(Color.WHITE);
         }
 
         font.getData().setScale(1.8f);
