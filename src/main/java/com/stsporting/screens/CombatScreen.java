@@ -17,10 +17,10 @@ import com.stsporting.combat.creature.Player;
 import com.stsporting.combat.creature.enemy.AbstractMonster;
 import com.stsporting.combat.creature.enemy.Intent;
 import com.stsporting.combat.flow.TurnController;
+import com.stsporting.combat.input.CardAnimator;
 import com.stsporting.combat.input.CombatInputController;
 import com.stsporting.combat.input.HandLayout;
 import com.stsporting.combat.input.InputState;
-import com.stsporting.combat.input.Pose;
 import com.stsporting.combat.input.TargetResolver;
 import com.stsporting.combat.vfx.DamageNumberEffect;
 import com.stsporting.combat.vfx.EffectManager;
@@ -54,6 +54,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final ActionManager mgr;
     private final TurnController tc;
     private final HandLayout hand = new HandLayout();
+    private final CardAnimator cardAnim = new CardAnimator(300f, 150f); // ease in from draw pile
     private final CombatInputController input;
     private final EffectManager fx = new EffectManager();
     private final ScreenShake shake = new ScreenShake();
@@ -146,6 +147,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
         fx.update(delta);
         shake.update(delta);
         updateFlashes(delta);
+        cardAnim.update(state.hand, hand, delta);
 
         // Apply screen shake by offsetting the (centred) camera, then restore.
         float ox = shake.offsetX();
@@ -171,20 +173,20 @@ public class CombatScreen implements GameScreen, InputConsumer {
     }
 
     /** Render rectangle for a hand card, accounting for hover lift and drag. */
-    private Rectangle cardRect(int index, AbstractCard card) {
-        int n = state.hand.size();
+    private Rectangle cardRect(AbstractCard card) {
         float w = hand.cardW;
         float h = hand.cardH;
         if (card == input.draggingCard()) {
             return new Rectangle(input.dragX() - w / 2f, input.dragY() - h / 2f, w, h);
         }
-        Pose p = hand.poseFor(index, n);
+        float cx = cardAnim.x(card);
+        float cy = cardAnim.y(card);
         boolean hov = card == input.hoveredCard() && input.state() == InputState.HOVER;
         float scale = hov ? 1.18f : 1f;
         float lift = hov ? 60f : 0f;
         float ww = w * scale;
         float hh = h * scale;
-        return new Rectangle(p.x - ww / 2f, p.y - hh / 2f + lift, ww, hh);
+        return new Rectangle(cx - ww / 2f, cy - hh / 2f + lift, ww, hh);
     }
 
     private void drawShapes() {
@@ -203,7 +205,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
         int n = state.hand.size();
         for (int i = 0; i < n; i++) {
             AbstractCard c = state.hand.get(i);
-            Rectangle r = cardRect(i, c);
+            Rectangle r = cardRect(c);
             boolean playable = state.energy >= c.cost();
             if (c == input.draggingCard()) {
                 shapes.setColor(0.55f, 0.42f, 0.20f, 1f);
@@ -221,14 +223,11 @@ public class CombatScreen implements GameScreen, InputConsumer {
 
         // Targeting arrow.
         if (input.state() == InputState.TARGETING && input.draggingCard() != null) {
-            int idx = state.hand.indexOf(input.draggingCard());
-            if (idx >= 0) {
-                Pose origin = hand.poseFor(idx, n);
-                shapes.begin(ShapeRenderer.ShapeType.Line);
-                shapes.setColor(0.9f, 0.75f, 0.3f, 1f);
-                shapes.line(origin.x, origin.y, input.dragX(), input.dragY());
-                shapes.end();
-            }
+            AbstractCard dragging = input.draggingCard();
+            shapes.begin(ShapeRenderer.ShapeType.Line);
+            shapes.setColor(0.9f, 0.75f, 0.3f, 1f);
+            shapes.line(cardAnim.x(dragging), cardAnim.y(dragging), input.dragX(), input.dragY());
+            shapes.end();
         }
     }
 
@@ -261,10 +260,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
         text(font, "Draw " + state.drawPile.size() + "   Discard " + state.discardPile.size(), 240, 200);
 
         font.getData().setScale(1.3f);
-        int n = state.hand.size();
-        for (int i = 0; i < n; i++) {
-            AbstractCard c = state.hand.get(i);
-            Rectangle r = cardRect(i, c);
+        for (AbstractCard c : state.hand) {
+            Rectangle r = cardRect(c);
             text(font, "(" + c.cost() + ") " + c.name, r.x + 12, r.y + r.height - 22);
         }
 
