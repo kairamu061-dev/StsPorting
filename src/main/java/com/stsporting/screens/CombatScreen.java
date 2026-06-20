@@ -16,6 +16,8 @@ import com.stsporting.combat.creature.Creature;
 import com.stsporting.combat.creature.Player;
 import com.stsporting.combat.creature.enemy.AbstractMonster;
 import com.stsporting.combat.creature.enemy.Intent;
+import com.stsporting.combat.creature.enemy.IntentType;
+import com.stsporting.combat.power.AbstractPower;
 import com.stsporting.combat.flow.TurnController;
 import com.stsporting.combat.input.CardAnimator;
 import com.stsporting.combat.input.CombatInputController;
@@ -240,10 +242,19 @@ public class CombatScreen implements GameScreen, InputConsumer {
         if (enemy != null && !enemy.isDead()) {
             setFlashed(0.30f, 0.12f, 0.12f, flash(enemy));
             shapes.rect(enemyBox.x, enemyBox.y, enemyBox.width, enemyBox.height);
+            drawPowerChipShapes(enemy, enemyBox);
+            if (enemy instanceof AbstractMonster) {
+                Color ic = intentColor(((AbstractMonster) enemy).getIntent(state.player).type);
+                shapes.setColor(ic.r, ic.g, ic.b, 1f);
+                shapes.rect(enemyBox.x + enemyBox.width - 70, enemyBox.y + enemyBox.height - 70, 54, 54);
+            }
         }
 
         setFlashed(0.12f, 0.18f, 0.26f, state.player == null ? 0f : flash(state.player));
         shapes.rect(playerBox.x, playerBox.y, playerBox.width, playerBox.height);
+        if (state.player != null) {
+            drawPowerChipShapes(state.player, playerBox);
+        }
 
         int n = state.hand.size();
         for (int i = 0; i < n; i++) {
@@ -286,6 +297,80 @@ public class CombatScreen implements GameScreen, InputConsumer {
         }
     }
 
+    private static final float CHIP = 46f;
+    private static final float CHIP_GAP = 8f;
+
+    private float powersAnchorX(Rectangle box) {
+        return box.x + 16f;
+    }
+
+    private float powersAnchorY(Rectangle box) {
+        return box.y - 66f;
+    }
+
+    private Color powerColor(String id) {
+        switch (id) {
+            case "Strength": return Color.valueOf("e08a3cff");
+            case "Weak": return Color.valueOf("7faa5aff");
+            case "Vulnerable": return Color.valueOf("b066ffff");
+            case "Ritual": return Color.valueOf("d4b24aff");
+            case "Thorns": return Color.valueOf("9aa0a6ff");
+            case "Poison": return Color.valueOf("6db36dff");
+            case "Metallicize": return Color.valueOf("9fb6c9ff");
+            case "Regen": return Color.valueOf("7fe0a0ff");
+            default: return Color.LIGHT_GRAY;
+        }
+    }
+
+    private String powerShort(String id) {
+        switch (id) {
+            case "Strength": return "Str";
+            case "Weak": return "Wk";
+            case "Vulnerable": return "Vul";
+            case "Ritual": return "Rit";
+            case "Thorns": return "Tho";
+            case "Poison": return "Poi";
+            case "Metallicize": return "Met";
+            case "Regen": return "Rgn";
+            default: return id.substring(0, Math.min(3, id.length()));
+        }
+    }
+
+    private Color intentColor(IntentType type) {
+        if (type.isAttack()) {
+            return Color.valueOf("e0503aff");
+        }
+        switch (type) {
+            case DEFEND: return Color.valueOf("4aa3e0ff");
+            case BUFF: return Color.valueOf("d4b24aff");
+            case DEBUFF: return Color.valueOf("b066ffff");
+            default: return Color.LIGHT_GRAY;
+        }
+    }
+
+    private void drawPowerChipShapes(Creature c, Rectangle box) {
+        float x0 = powersAnchorX(box);
+        float y = powersAnchorY(box);
+        for (int i = 0; i < c.powers.size(); i++) {
+            AbstractPower p = c.powers.get(i);
+            Color col = powerColor(p.id);
+            shapes.setColor(col.r, col.g, col.b, 1f);
+            shapes.rect(x0 + i * (CHIP + CHIP_GAP), y, CHIP, CHIP);
+        }
+    }
+
+    private void drawPowerChipLabels(Creature c, Rectangle box, BitmapFont font) {
+        float x0 = powersAnchorX(box);
+        float y = powersAnchorY(box);
+        font.getData().setScale(1.0f);
+        for (int i = 0; i < c.powers.size(); i++) {
+            AbstractPower p = c.powers.get(i);
+            float x = x0 + i * (CHIP + CHIP_GAP);
+            text(font, powerShort(p.id), x + 2, y + CHIP + 24);
+            text(font, Integer.toString(p.amount), x + 14, y + 30);
+        }
+    }
+
     /** Set the shape colour, blended toward white by the flash strength. */
     private void setFlashed(float r, float g, float b, float flash) {
         float k = flash * 0.7f;
@@ -313,6 +398,20 @@ public class CombatScreen implements GameScreen, InputConsumer {
                 + (p.block > 0 ? "  Blk " + p.block : ""), 240, 560);
         text(font, "Energy " + state.energy + "/" + state.maxEnergy, 240, 250);
         text(font, "Draw " + state.drawPile.size() + "   Discard " + state.discardPile.size(), 240, 200);
+
+        // Power chips + intent value.
+        if (enemy != null && !enemy.isDead()) {
+            drawPowerChipLabels(enemy, enemyBox, font);
+            if (enemy instanceof AbstractMonster) {
+                Intent it = ((AbstractMonster) enemy).getIntent(state.player);
+                if (it.type.isAttack()) {
+                    font.getData().setScale(1.6f);
+                    text(font, Integer.toString(it.damage) + (it.hits > 1 ? "x" + it.hits : ""),
+                            enemyBox.x + enemyBox.width - 62, enemyBox.y + enemyBox.height - 30);
+                }
+            }
+        }
+        drawPowerChipLabels(state.player, playerBox, font);
 
         font.getData().setScale(1.3f);
         for (AbstractCard c : state.hand) {
