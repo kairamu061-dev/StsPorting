@@ -22,6 +22,7 @@ public class GainBlockAction extends GameAction {
             applied = true;
             int a = PowerHooks.applyBlockModifiers(target, amount);
             target.addBlock(a);
+            state.listener.onBlockGained(target, a);
         }
         tickDuration(delta);
     }

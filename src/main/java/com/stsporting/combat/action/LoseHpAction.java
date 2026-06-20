@@ -21,6 +21,7 @@ public class LoseHpAction extends GameAction {
             applied = true;
             if (!target.isDead()) {
                 target.currentHp = Math.max(0, target.currentHp - amount);
+                state.listener.onHpLost(target, amount);
             }
         }
         tickDuration(delta);

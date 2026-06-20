@@ -60,6 +60,8 @@ public class DamageAction extends GameAction {
             target.currentHp = 0;
         }
 
+        state.listener.onDamageDealt(target, overflow, type);
+
         // On-attacked hooks (e.g. Thorns). Copy to avoid concurrent modification.
         DamageInfo info = new DamageInfo(source, base, type);
         for (AbstractPower p : new ArrayList<>(target.powers)) {

@@ -6,7 +6,10 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
+import com.stsporting.combat.CombatListener;
 import com.stsporting.combat.CombatState;
+import com.stsporting.combat.DamageType;
 import com.stsporting.combat.action.ActionManager;
 import com.stsporting.combat.card.AbstractCard;
 import com.stsporting.combat.creature.Creature;
@@ -19,6 +22,9 @@ import com.stsporting.combat.input.HandLayout;
 import com.stsporting.combat.input.InputState;
 import com.stsporting.combat.input.Pose;
 import com.stsporting.combat.input.TargetResolver;
+import com.stsporting.combat.vfx.DamageNumberEffect;
+import com.stsporting.combat.vfx.EffectManager;
+import com.stsporting.combat.vfx.ScreenShake;
 import com.stsporting.content.cards.CardLibrary;
 import com.stsporting.content.monsters.MonsterId;
 import com.stsporting.content.monsters.MonsterLibrary;
@@ -46,9 +52,12 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final TurnController tc;
     private final HandLayout hand = new HandLayout();
     private final CombatInputController input;
+    private final EffectManager fx = new EffectManager();
+    private final ScreenShake shake = new ScreenShake();
 
     private final Rectangle endTurnBtn = new Rectangle(1600, 130, 260, 90);
     private final Rectangle enemyBox = new Rectangle(1150, 600, 360, 260);
+    private final Rectangle playerBox = new Rectangle(220, 380, 360, 220);
 
     public CombatScreen(GameContext ctx) {
         this.ctx = ctx;
@@ -66,6 +75,40 @@ public class CombatScreen implements GameScreen, InputConsumer {
         };
         this.input = new CombatInputController(state, mgr, hand, targets,
                 PLAY_THRESHOLD_Y, tc::isPlayerInputAllowed);
+        this.state.listener = vfxListener();
+    }
+
+    private CombatListener vfxListener() {
+        return new CombatListener() {
+            @Override
+            public void onDamageDealt(Creature target, int hpDamage, DamageType type) {
+                if (hpDamage <= 0) {
+                    return;
+                }
+                Vector2 p = posFor(target);
+                fx.add(new DamageNumberEffect(p.x, p.y, hpDamage, Color.SCARLET, 2.4f));
+                shake.shake(Math.min(18f, 4f + hpDamage * 0.7f), 0.22f);
+            }
+
+            @Override
+            public void onBlockGained(Creature target, int amount) {
+                Vector2 p = posFor(target);
+                fx.add(new DamageNumberEffect(p.x, p.y, amount, Color.valueOf("6db3ffff"), 2.0f));
+            }
+
+            @Override
+            public void onHpLost(Creature target, int amount) {
+                Vector2 p = posFor(target);
+                fx.add(new DamageNumberEffect(p.x, p.y, amount, Color.valueOf("b066ffff"), 2.2f));
+            }
+        };
+    }
+
+    private Vector2 posFor(Creature c) {
+        if (c == state.player) {
+            return new Vector2(playerBox.x + playerBox.width / 2f, playerBox.y + playerBox.height / 2f);
+        }
+        return new Vector2(enemyBox.x + enemyBox.width / 2f, enemyBox.y + enemyBox.height / 2f);
     }
 
     @Override
@@ -75,8 +118,22 @@ public class CombatScreen implements GameScreen, InputConsumer {
     @Override
     public void render(float delta) {
         tc.update(delta);
+        fx.update(delta);
+        shake.update(delta);
+
+        // Apply screen shake by offsetting the (centred) camera, then restore.
+        float ox = shake.offsetX();
+        float oy = shake.offsetY();
+        ctx.camera.position.set(ViewportConfig.VIRTUAL_WIDTH / 2f + ox,
+                ViewportConfig.VIRTUAL_HEIGHT / 2f + oy, 0);
+        ctx.camera.update();
+        ctx.batch.setProjectionMatrix(ctx.camera.combined);
+
         drawShapes();
         drawText();
+
+        ctx.camera.position.set(ViewportConfig.VIRTUAL_WIDTH / 2f, ViewportConfig.VIRTUAL_HEIGHT / 2f, 0);
+        ctx.camera.update();
     }
 
     private boolean over() {
@@ -187,6 +244,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
             String msg = state.isPlayerDead() ? "DEFEAT" : "VICTORY";
             text(font, msg + " - press ESC for menu", 700, 980);
         }
+
+        fx.render(ctx.batch, font); // floating numbers on top
         ctx.batch.end();
     }
 

@@ -4,16 +4,16 @@
 
 <!-- ステータス: [ ] 未着手 / [~] 進行中 / [x] 完了 -->
 
-- [ ] `AbstractEffect`・`EffectManager`（更新/描画/破棄/プール）
-- [ ] `DamageNumberEffect` / `BlockNumberEffect` / `HealNumberEffect`
-- [ ] `HitFlashEffect` / `ShakeCreatureEffect` / `SlashParticleEffect`
-- [ ] `GainBlockSparkEffect`
-- [ ] `ScreenShake`（カメラオフセット・減衰）
-- [ ] `CardMoveEffect`（from→to 補間：プレイ/ドロー/捨て/消滅）
-- [ ] `PowerIconRenderer` / `IntentRenderer`（論理値の可視化）
-- [ ] `HandRenderer`（input 連動：拡大/追従/矢印）
-- [ ] `CombatVfx` API と action-queue の duration 連携
-- [ ] レンダリング z 順の統合・実機でのテンポ/打撃感確認
+- [x] `AbstractEffect`・`EffectManager`（更新/プルーン/上限・描画）
+- [x] `DamageNumberEffect`（ダメージ赤/ブロック青/HP減 紫を色分けで兼用：上昇＋フェード）
+- [x] `ScreenShake`（カメラオフセット・線形減衰）
+- [x] `CombatListener` フック（onDamageDealt/onBlockGained/onHpLost）でロジック→演出を疎結合接続
+- [x] レンダリング統合（CombatScreen：シェイクでカメラオフセット、数値は最前面）
+- [x] ヘッドレステスト（エフェクト寿命/プルーン・数値の上昇/フェード・シェイク減衰）— 4件 PASS
+- [ ] `HitFlashEffect` / `SlashParticleEffect`（被弾フラッシュ・斬撃）
+- [ ] `CardMoveEffect`（プレイ/ドロー/捨て/消滅の飛翔）
+- [ ] `PowerIconRenderer` / `IntentRenderer`（アイコン化。現状はテキスト表示）
+- [ ] action-queue の duration とのテンポ連携の精緻化・実機での打撃感調整
 
 ## 依存関係
 
@@ -23,5 +23,6 @@
 
 ## ステータス
 
-In progress（CombatScreen に最小描画（HP/ブロック/エネルギー/インテント/手札/勝敗）を実装。
-数値ポップ・被弾フラッシュ・画面シェイク・カード移動アニメ等の本演出は次段で action-queue の duration に接続）
+In progress（CombatListener 方式でロジックと疎結合に演出を接続。数値ポップ（ダメージ/ブロック/HP減）と
+画面シェイクを実装・テスト・CombatScreen 統合済み。被弾フラッシュ/斬撃/カード移動アニメ/アイコン化と
+テンポ精緻化が次段）

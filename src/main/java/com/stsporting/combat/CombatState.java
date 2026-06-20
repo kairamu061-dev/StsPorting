@@ -30,6 +30,9 @@ public class CombatState {
     /** Deterministic RNG for shuffling (seeded from the run in real play). */
     public Random rng = new Random(0);
 
+    /** Presentation hook; defaults to a no-op so headless logic is unaffected. */
+    public CombatListener listener = CombatListener.NO_OP;
+
     public CombatState() {
     }
 
