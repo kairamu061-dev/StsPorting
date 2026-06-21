@@ -66,16 +66,15 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final Map<Creature, Float> flashTimers = new HashMap<>();
 
     // While aiming a target card it lifts just above the hand (lower, like the
-    // original); on play it rises higher (PLAY_PEAK_Y) before arcing to discard.
+    // original); on play it rises to PLAY_PEAK_Y, holds, then goes to discard.
     private static final float AIM_X = 960f;
-    private static final float AIM_Y = 380f;
-    private static final float PLAY_PEAK_Y = 880f;
+    private static final float AIM_Y = 300f;
+    private static final float PLAY_PEAK_Y = 680f;
     private float previewX = AIM_X;
     private float previewY = AIM_Y;
     private AbstractCard lastDragging;
 
     // Cards that have left the hand, flying toward the discard pile.
-    private static final float FLY_TIME = 0.45f;
     private static final float DISCARD_X = 1780f;
     private static final float DISCARD_Y = 150f;
     private final List<FlyingCard> flying = new ArrayList<>();
@@ -86,41 +85,52 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private String bannerText = "";
     private float bannerTimer;
 
-    /** A card flying out along a quadratic bezier (start -> control -> discard). */
+    /**
+     * A card flying out along timed keyframes. Played cards rise, hold briefly,
+     * then go to the discard pile; end-of-turn discards glide straight there.
+     */
     private static final class FlyingCard {
-        final float x0;
-        final float y0;
-        final float cx;
-        final float cy;
-        final float x1;
-        final float y1;
+        final float[] times;
+        final float[] xs;
+        final float[] ys;
         final String label;
+        final float total;
         float t;
 
-        FlyingCard(float x0, float y0, float cx, float cy, float x1, float y1, String label) {
-            this.x0 = x0;
-            this.y0 = y0;
-            this.cx = cx;
-            this.cy = cy;
-            this.x1 = x1;
-            this.y1 = y1;
+        FlyingCard(float[] times, float[] xs, float[] ys, String label) {
+            this.times = times;
+            this.xs = xs;
+            this.ys = ys;
             this.label = label;
+            this.total = times[times.length - 1];
         }
 
+        boolean done() {
+            return t >= total;
+        }
+
+        /** Overall progress 0..1 (used for shrink/fade). */
         float p() {
-            return Math.min(1f, t / FLY_TIME);
+            return total <= 0f ? 1f : Math.min(1f, t / total);
         }
 
         float x() {
-            float p = p();
-            float u = 1f - p;
-            return u * u * x0 + 2f * u * p * cx + p * p * x1;
+            return interp(xs);
         }
 
         float y() {
-            float p = p();
-            float u = 1f - p;
-            return u * u * y0 + 2f * u * p * cy + p * p * y1;
+            return interp(ys);
+        }
+
+        private float interp(float[] vals) {
+            for (int i = 0; i < times.length - 1; i++) {
+                if (t <= times[i + 1]) {
+                    float seg = times[i + 1] - times[i];
+                    float local = seg <= 0f ? 1f : (t - times[i]) / seg;
+                    return vals[i] + (vals[i + 1] - vals[i]) * Math.max(0f, Math.min(1f, local));
+                }
+            }
+            return vals[vals.length - 1];
         }
     }
 
@@ -197,16 +207,23 @@ public class CombatScreen implements GameScreen, InputConsumer {
                 // Discarded (e.g. end of turn): straight glide to the pile.
                 float sx = cardAnim.x(c);
                 float sy = cardAnim.y(c);
-                flying.add(new FlyingCard(sx, sy, (sx + DISCARD_X) / 2f, (sy + DISCARD_Y) / 2f,
-                        DISCARD_X, DISCARD_Y, label(c)));
+                flying.add(new FlyingCard(
+                        new float[] {0f, 0.35f},
+                        new float[] {sx, DISCARD_X},
+                        new float[] {sy, DISCARD_Y},
+                        label(c)));
             }
         }
         playHandled.clear();
     }
 
-    /** Played card: rise up (to ~PLAY_PEAK_Y) then arc down to the pile. */
+    /** Played card: rise to the peak, hold briefly, then go to the discard pile. */
     private void spawnPlayedCardFlyout(AbstractCard c, float fromX, float fromY) {
-        flying.add(new FlyingCard(fromX, fromY, fromX, PLAY_PEAK_Y, DISCARD_X, DISCARD_Y, label(c)));
+        flying.add(new FlyingCard(
+                new float[] {0f, 0.22f, 0.42f, 0.72f},          // rise / hold / travel
+                new float[] {fromX, fromX, fromX, DISCARD_X},
+                new float[] {fromY, PLAY_PEAK_Y, PLAY_PEAK_Y, DISCARD_Y},
+                label(c)));
         playHandled.add(c);
     }
 
@@ -272,7 +289,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
         for (int i = flying.size() - 1; i >= 0; i--) {
             FlyingCard f = flying.get(i);
             f.t += delta;
-            if (f.t >= FLY_TIME) {
+            if (f.done()) {
                 flying.remove(i);
             }
         }
