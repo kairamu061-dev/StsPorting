@@ -65,11 +65,13 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private static final float FLASH_TIME = 0.2f;
     private final Map<Creature, Float> flashTimers = new HashMap<>();
 
-    // Centre "preview" position a picked-up card rises to (like the original).
-    private static final float PREVIEW_X = 960f;
-    private static final float PREVIEW_Y = 600f;
-    private float previewX = PREVIEW_X;
-    private float previewY = PREVIEW_Y;
+    // While aiming a target card it lifts just above the hand (lower, like the
+    // original); on play it rises higher (PLAY_PEAK_Y) before arcing to discard.
+    private static final float AIM_X = 960f;
+    private static final float AIM_Y = 380f;
+    private static final float PLAY_PEAK_Y = 880f;
+    private float previewX = AIM_X;
+    private float previewY = AIM_Y;
     private AbstractCard lastDragging;
 
     // Cards that have left the hand, flying toward the discard pile.
@@ -202,9 +204,9 @@ public class CombatScreen implements GameScreen, InputConsumer {
         playHandled.clear();
     }
 
-    /** Played card: rise up from the preview spot, then arc down to the pile. */
+    /** Played card: rise up (to ~PLAY_PEAK_Y) then arc down to the pile. */
     private void spawnPlayedCardFlyout(AbstractCard c, float fromX, float fromY) {
-        flying.add(new FlyingCard(fromX, fromY, fromX, fromY + 220f, DISCARD_X, DISCARD_Y, label(c)));
+        flying.add(new FlyingCard(fromX, fromY, fromX, PLAY_PEAK_Y, DISCARD_X, DISCARD_Y, label(c)));
         playHandled.add(c);
     }
 
@@ -222,8 +224,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
                 lastDragging = dc;
             }
             float t = Math.min(1f, 16f * delta);
-            previewX += (PREVIEW_X - previewX) * t;
-            previewY += (PREVIEW_Y - previewY) * t;
+            previewX += (AIM_X - previewX) * t;
+            previewY += (AIM_Y - previewY) * t;
         } else {
             lastDragging = null;
         }
@@ -307,9 +309,9 @@ public class CombatScreen implements GameScreen, InputConsumer {
         float h = hand.cardH;
         if (card == input.draggingCard()) {
             if (input.state() == InputState.TARGETING) {
-                // Single-target card rises to the centre preview, enlarged.
-                float pw = w * 1.35f;
-                float ph = h * 1.35f;
+                // Single-target card lifts just above the hand while aiming.
+                float pw = w * 1.2f;
+                float ph = h * 1.2f;
                 return new Rectangle(previewX - pw / 2f, previewY - ph / 2f, pw, ph);
             }
             // Non-target card follows the cursor.
