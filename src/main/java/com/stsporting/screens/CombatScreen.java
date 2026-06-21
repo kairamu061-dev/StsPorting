@@ -65,31 +65,60 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private static final float FLASH_TIME = 0.2f;
     private final Map<Creature, Float> flashTimers = new HashMap<>();
 
+    // Centre "preview" position a picked-up card rises to (like the original).
+    private static final float PREVIEW_X = 960f;
+    private static final float PREVIEW_Y = 600f;
+    private float previewX = PREVIEW_X;
+    private float previewY = PREVIEW_Y;
+    private AbstractCard lastDragging;
+
     // Cards that have left the hand, flying toward the discard pile.
-    private static final float FLY_TIME = 0.35f;
+    private static final float FLY_TIME = 0.45f;
     private static final float DISCARD_X = 1780f;
     private static final float DISCARD_Y = 150f;
     private final List<FlyingCard> flying = new ArrayList<>();
+    private final java.util.Set<AbstractCard> playHandled = new java.util.HashSet<>();
     private List<AbstractCard> prevHand = new ArrayList<>();
 
     private TurnController.Phase lastPhase;
     private String bannerText = "";
     private float bannerTimer;
 
+    /** A card flying out along a quadratic bezier (start -> control -> discard). */
     private static final class FlyingCard {
-        final float sx;
-        final float sy;
+        final float x0;
+        final float y0;
+        final float cx;
+        final float cy;
+        final float x1;
+        final float y1;
         final String label;
         float t;
 
-        FlyingCard(float sx, float sy, String label) {
-            this.sx = sx;
-            this.sy = sy;
+        FlyingCard(float x0, float y0, float cx, float cy, float x1, float y1, String label) {
+            this.x0 = x0;
+            this.y0 = y0;
+            this.cx = cx;
+            this.cy = cy;
+            this.x1 = x1;
+            this.y1 = y1;
             this.label = label;
         }
 
         float p() {
             return Math.min(1f, t / FLY_TIME);
+        }
+
+        float x() {
+            float p = p();
+            float u = 1f - p;
+            return u * u * x0 + 2f * u * p * cx + p * p * x1;
+        }
+
+        float y() {
+            float p = p();
+            float u = 1f - p;
+            return u * u * y0 + 2f * u * p * cy + p * p * y1;
         }
     }
 
@@ -125,20 +154,20 @@ public class CombatScreen implements GameScreen, InputConsumer {
                     return;
                 }
                 Vector2 p = posFor(target);
-                fx.add(new DamageNumberEffect(p.x, p.y, hpDamage, Color.SCARLET, 2.4f));
-                shake.shake(Math.min(18f, 4f + hpDamage * 0.7f), 0.22f);
+                fx.add(new DamageNumberEffect(p.x, p.y + 40f, hpDamage, Color.SCARLET, 3.4f));
+                shake.shake(Math.min(20f, 5f + hpDamage * 0.8f), 0.22f);
             }
 
             @Override
             public void onBlockGained(Creature target, int amount) {
                 Vector2 p = posFor(target);
-                fx.add(new DamageNumberEffect(p.x, p.y, amount, Color.valueOf("6db3ffff"), 2.0f));
+                fx.add(new DamageNumberEffect(p.x, p.y + 40f, amount, Color.valueOf("6db3ffff"), 2.6f));
             }
 
             @Override
             public void onHpLost(Creature target, int amount) {
                 Vector2 p = posFor(target);
-                fx.add(new DamageNumberEffect(p.x, p.y, amount, Color.valueOf("b066ffff"), 2.2f));
+                fx.add(new DamageNumberEffect(p.x, p.y + 40f, amount, Color.valueOf("b066ffff"), 3.0f));
             }
         };
     }
@@ -162,9 +191,41 @@ public class CombatScreen implements GameScreen, InputConsumer {
 
     private void spawnFlyingForPlayedCards() {
         for (AbstractCard c : prevHand) {
-            if (!state.hand.contains(c)) {
-                flying.add(new FlyingCard(cardAnim.x(c), cardAnim.y(c), "(" + c.cost() + ") " + c.name));
+            if (!state.hand.contains(c) && !playHandled.contains(c)) {
+                // Discarded (e.g. end of turn): straight glide to the pile.
+                float sx = cardAnim.x(c);
+                float sy = cardAnim.y(c);
+                flying.add(new FlyingCard(sx, sy, (sx + DISCARD_X) / 2f, (sy + DISCARD_Y) / 2f,
+                        DISCARD_X, DISCARD_Y, label(c)));
             }
+        }
+        playHandled.clear();
+    }
+
+    /** Played card: rise up from the preview spot, then arc down to the pile. */
+    private void spawnPlayedCardFlyout(AbstractCard c, float fromX, float fromY) {
+        flying.add(new FlyingCard(fromX, fromY, fromX, fromY + 220f, DISCARD_X, DISCARD_Y, label(c)));
+        playHandled.add(c);
+    }
+
+    private String label(AbstractCard c) {
+        return "(" + c.cost() + ") " + c.name;
+    }
+
+    private void updatePreview(float delta) {
+        AbstractCard dc = input.draggingCard();
+        // Only single-target cards rise to the centre; others follow the cursor.
+        if (dc != null && input.state() == InputState.TARGETING) {
+            if (dc != lastDragging) { // just picked up: start from its slot
+                previewX = cardAnim.x(dc);
+                previewY = cardAnim.y(dc);
+                lastDragging = dc;
+            }
+            float t = Math.min(1f, 16f * delta);
+            previewX += (PREVIEW_X - previewX) * t;
+            previewY += (PREVIEW_Y - previewY) * t;
+        } else {
+            lastDragging = null;
         }
     }
 
@@ -215,6 +276,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
         }
         prevHand = new ArrayList<>(state.hand);
         updateTurnBanner(delta);
+        updatePreview(delta);
 
         // Apply screen shake by offsetting the (centred) camera, then restore.
         float ox = shake.offsetX();
@@ -244,6 +306,13 @@ public class CombatScreen implements GameScreen, InputConsumer {
         float w = hand.cardW;
         float h = hand.cardH;
         if (card == input.draggingCard()) {
+            if (input.state() == InputState.TARGETING) {
+                // Single-target card rises to the centre preview, enlarged.
+                float pw = w * 1.35f;
+                float ph = h * 1.35f;
+                return new Rectangle(previewX - pw / 2f, previewY - ph / 2f, pw, ph);
+            }
+            // Non-target card follows the cursor.
             return new Rectangle(input.dragX() - w / 2f, input.dragY() - h / 2f, w, h);
         }
         float cx = cardAnim.x(card);
@@ -293,14 +362,14 @@ public class CombatScreen implements GameScreen, InputConsumer {
             shapes.rect(r.x, r.y, r.width, r.height);
         }
 
-        // Flying (played/discarded) cards shrinking toward the discard pile.
+        // Flying (played/discarded) cards shrinking along their bezier path.
         for (FlyingCard f : flying) {
             float p = f.p();
             float s = 1f - 0.7f * p;
             float w = hand.cardW * s;
             float h = hand.cardH * s;
-            float x = f.sx + (DISCARD_X - f.sx) * p;
-            float y = f.sy + (DISCARD_Y - f.sy) * p;
+            float x = f.x();
+            float y = f.y();
             shapes.setColor(0.24f, 0.20f, 0.14f, 1f);
             shapes.rect(x - w / 2f, y - h / 2f, w, h);
         }
@@ -309,12 +378,11 @@ public class CombatScreen implements GameScreen, InputConsumer {
         shapes.rect(endTurnBtn.x, endTurnBtn.y, endTurnBtn.width, endTurnBtn.height);
         shapes.end();
 
-        // Targeting arrow.
+        // Targeting arrow: from the centred preview card to the cursor.
         if (input.state() == InputState.TARGETING && input.draggingCard() != null) {
-            AbstractCard dragging = input.draggingCard();
             shapes.begin(ShapeRenderer.ShapeType.Line);
-            shapes.setColor(0.9f, 0.75f, 0.3f, 1f);
-            shapes.line(cardAnim.x(dragging), cardAnim.y(dragging), input.dragX(), input.dragY());
+            shapes.setColor(0.9f, 0.3f, 0.25f, 1f);
+            shapes.line(previewX, previewY + hand.cardH * 0.6f, input.dragX(), input.dragY());
             shapes.end();
         }
     }
@@ -441,11 +509,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
             text(font, "(" + c.cost() + ") " + c.name, r.x + 12, r.y + r.height - 22);
         }
         for (FlyingCard f : flying) {
-            float fp = f.p();
-            float x = f.sx + (DISCARD_X - f.sx) * fp;
-            float y = f.sy + (DISCARD_Y - f.sy) * fp;
-            font.setColor(1f, 1f, 1f, 1f - fp);
-            text(font, f.label, x - 80, y + 40);
+            font.setColor(1f, 1f, 1f, 1f - f.p());
+            text(font, f.label, f.x() - 80, f.y() + 40);
             font.setColor(Color.WHITE);
         }
 
@@ -506,7 +571,16 @@ public class CombatScreen implements GameScreen, InputConsumer {
 
     @Override
     public boolean onTouchUp(float vx, float vy, int button) {
-        return input.onTouchUp(vx, vy);
+        AbstractCard dragged = input.draggingCard();
+        boolean wasTargeting = input.state() == InputState.TARGETING;
+        float px = wasTargeting ? previewX : vx;
+        float py = wasTargeting ? previewY : vy;
+        boolean played = input.onTouchUp(vx, vy);
+        if (played && dragged != null) {
+            // Rise from where it was, then arc down to the discard pile.
+            spawnPlayedCardFlyout(dragged, px, py);
+        }
+        return played;
     }
 
     @Override
