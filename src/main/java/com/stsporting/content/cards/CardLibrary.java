@@ -31,13 +31,22 @@ public final class CardLibrary {
     /** Ironclad starting deck: 5 Strike, 4 Defend, 1 Bash. */
     public static List<AbstractCard> starterDeck() {
         List<AbstractCard> deck = new ArrayList<>();
+        for (CardId id : starterDeckIds()) {
+            deck.add(newCard(id));
+        }
+        return deck;
+    }
+
+    /** Ironclad starting deck as ids (the run layer's master deck). */
+    public static List<CardId> starterDeckIds() {
+        List<CardId> deck = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
-            deck.add(newCard(CardId.STRIKE));
+            deck.add(CardId.STRIKE);
         }
         for (int i = 0; i < 4; i++) {
-            deck.add(newCard(CardId.DEFEND));
+            deck.add(CardId.DEFEND);
         }
-        deck.add(newCard(CardId.BASH));
+        deck.add(CardId.BASH);
         return deck;
     }
 }
