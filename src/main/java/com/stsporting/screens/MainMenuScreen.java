@@ -11,6 +11,7 @@ import com.stsporting.core.GameContext;
 import com.stsporting.core.GameScreen;
 import com.stsporting.core.InputConsumer;
 import com.stsporting.render.ViewportConfig;
+import com.stsporting.run.RunController;
 
 /**
  * Main menu: title plus New Run / Settings / Quit buttons. Labels are ASCII for
@@ -45,12 +46,19 @@ public class MainMenuScreen implements GameScreen, InputConsumer {
         float cx = (ViewportConfig.VIRTUAL_WIDTH - BTN_W) / 2f;
         this.buttons = new Button[] {
                 new Button("New Run", new Rectangle(cx, 560, BTN_W, BTN_H),
-                        () -> ctx.screens.replace(new CombatScreen(ctx))),
+                        () -> startRun(ctx)),
                 new Button("Settings", new Rectangle(cx, 450, BTN_W, BTN_H),
                         () -> { /* placeholder; settings UI is optional/future */ }),
                 new Button("Quit", new Rectangle(cx, 340, BTN_W, BTN_H),
                         () -> Gdx.app.exit()),
         };
+    }
+
+    private static void startRun(GameContext ctx) {
+        ScreenRunNavigator nav = new ScreenRunNavigator(ctx);
+        RunController controller = new RunController(nav, System.nanoTime());
+        nav.setController(controller);
+        controller.start();
     }
 
     @Override

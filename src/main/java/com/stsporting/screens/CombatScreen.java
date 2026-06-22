@@ -1,6 +1,5 @@
 package com.stsporting.screens;
 
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
@@ -27,13 +26,16 @@ import com.stsporting.combat.input.TargetResolver;
 import com.stsporting.combat.vfx.DamageNumberEffect;
 import com.stsporting.combat.vfx.EffectManager;
 import com.stsporting.combat.vfx.ScreenShake;
+import com.stsporting.content.cards.CardId;
 import com.stsporting.content.cards.CardLibrary;
-import com.stsporting.content.monsters.MonsterId;
 import com.stsporting.content.monsters.MonsterLibrary;
 import com.stsporting.core.GameContext;
 import com.stsporting.core.GameScreen;
 import com.stsporting.core.InputConsumer;
 import com.stsporting.render.ViewportConfig;
+import com.stsporting.run.CombatRequest;
+import com.stsporting.run.CombatResult;
+import java.util.function.Consumer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -51,6 +53,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private static final float PLAY_THRESHOLD_Y = 430f;
 
     private final GameContext ctx;
+    private final Consumer<CombatResult> onComplete;
+    private boolean resultSent;
     private final ShapeRenderer shapes = new ShapeRenderer();
     private final GlyphLayout layout = new GlyphLayout();
 
@@ -138,12 +142,15 @@ public class CombatScreen implements GameScreen, InputConsumer {
     private final Rectangle enemyBox = new Rectangle(1150, 600, 360, 260);
     private final Rectangle playerBox = new Rectangle(220, 380, 360, 220);
 
-    public CombatScreen(GameContext ctx) {
+    public CombatScreen(GameContext ctx, CombatRequest request, Consumer<CombatResult> onComplete) {
         this.ctx = ctx;
-        this.state = new CombatState(new Player());
-        this.state.rng = new Random(System.nanoTime());
-        this.state.drawPile.addAll(CardLibrary.starterDeck());
-        AbstractMonster enemy = MonsterLibrary.newMonster(MonsterId.CULTIST);
+        this.onComplete = onComplete;
+        this.state = new CombatState(new Player(request.playerMaxHp, request.playerHp));
+        this.state.rng = new Random(request.combatSeed);
+        for (CardId id : request.deck) {
+            this.state.drawPile.add(CardLibrary.newCard(id));
+        }
+        AbstractMonster enemy = MonsterLibrary.newMonster(request.enemy);
         enemy.initialize(state.rng);
         this.state.enemies.add(enemy);
         this.mgr = new ActionManager(state);
@@ -562,7 +569,7 @@ public class CombatScreen implements GameScreen, InputConsumer {
         if (over()) {
             font.getData().setScale(3f);
             String msg = state.isPlayerDead() ? "DEFEAT" : "VICTORY";
-            text(font, msg + " - press ESC for menu", 700, 980);
+            text(font, msg + " - click to continue", 760, 980);
         }
 
         fx.render(ctx.batch, font); // floating numbers on top
@@ -594,13 +601,23 @@ public class CombatScreen implements GameScreen, InputConsumer {
     @Override
     public boolean onTouchDown(float vx, float vy, int button) {
         if (over()) {
-            return false;
+            sendResult();
+            return true;
         }
         if (tc.isPlayerInputAllowed() && endTurnBtn.contains(vx, vy)) {
             tc.requestEndTurn();
             return true;
         }
         return input.onTouchDown(vx, vy);
+    }
+
+    private void sendResult() {
+        if (resultSent) {
+            return;
+        }
+        resultSent = true;
+        boolean victory = !state.isPlayerDead();
+        onComplete.accept(new CombatResult(victory, Math.max(0, state.player.currentHp)));
     }
 
     @Override
@@ -624,8 +641,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
 
     @Override
     public boolean onKeyDown(int keycode) {
-        if (keycode == Input.Keys.ESCAPE) {
-            ctx.screens.replace(new MainMenuScreen(ctx));
+        if (over()) {
+            sendResult();
             return true;
         }
         return false;
