@@ -33,4 +33,7 @@
 
 ## ステータス
 
-Todo（親ドキュメント整備完了・サブ項目分割済み。サブ項目の詳細ドキュメントは順次整備）
+In progress（RunState/RunRng/RunController を実装し、map→戦闘→報酬→map のラン動線を結線。
+CombatScreen を CombatRequest/CombatResult 駆動に改修、MapScreen/RewardScreen/GameOverScreen を追加。
+ボス勝利でクリア・敗北でゲームオーバー。ロジックは fake navigator で 7 件ヘッドレステスト済み。
+休憩=回復のみ簡易、ショップ/宝箱/イベント/ポーション/レリックはサブ項目で順次実装）
