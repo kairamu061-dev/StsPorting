@@ -233,8 +233,8 @@ public class CombatScreen implements GameScreen, InputConsumer {
 
     private void updatePreview(float delta) {
         AbstractCard dc = input.draggingCard();
-        // Only single-target cards rise to the centre; others follow the cursor.
-        if (dc != null && input.state() == InputState.TARGETING) {
+        // Every picked-up card rises to the same aim spot above the hand.
+        if (dc != null) {
             if (dc != lastDragging) { // just picked up: start from its slot
                 previewX = cardAnim.x(dc);
                 previewY = cardAnim.y(dc);
@@ -325,14 +325,10 @@ public class CombatScreen implements GameScreen, InputConsumer {
         float w = hand.cardW;
         float h = hand.cardH;
         if (card == input.draggingCard()) {
-            if (input.state() == InputState.TARGETING) {
-                // Single-target card lifts just above the hand while aiming.
-                float pw = w * 1.2f;
-                float ph = h * 1.2f;
-                return new Rectangle(previewX - pw / 2f, previewY - ph / 2f, pw, ph);
-            }
-            // Non-target card follows the cursor.
-            return new Rectangle(input.dragX() - w / 2f, input.dragY() - h / 2f, w, h);
+            // Every picked-up card lifts to the same aim spot above the hand.
+            float pw = w * 1.2f;
+            float ph = h * 1.2f;
+            return new Rectangle(previewX - pw / 2f, previewY - ph / 2f, pw, ph);
         }
         float cx = cardAnim.x(card);
         float cy = cardAnim.y(card);
@@ -591,12 +587,11 @@ public class CombatScreen implements GameScreen, InputConsumer {
     @Override
     public boolean onTouchUp(float vx, float vy, int button) {
         AbstractCard dragged = input.draggingCard();
-        boolean wasTargeting = input.state() == InputState.TARGETING;
-        float px = wasTargeting ? previewX : vx;
-        float py = wasTargeting ? previewY : vy;
+        float px = previewX;
+        float py = previewY;
         boolean played = input.onTouchUp(vx, vy);
         if (played && dragged != null) {
-            // Rise from where it was, then arc down to the discard pile.
+            // Rise from the aim spot, hold, then go to the discard pile.
             spawnPlayedCardFlyout(dragged, px, py);
         }
         return played;
