@@ -340,6 +340,24 @@ public class CombatScreen implements GameScreen, InputConsumer {
         return new Rectangle(cx - ww / 2f, cy - hh / 2f + lift, ww, hh);
     }
 
+    private void drawCardLabel(AbstractCard c, BitmapFont font) {
+        Rectangle r = cardRect(c);
+        text(font, "(" + c.cost() + ") " + c.name, r.x + 12, r.y + r.height - 22);
+    }
+
+    private void drawCardShape(AbstractCard c) {
+        Rectangle r = cardRect(c);
+        boolean playable = state.energy >= c.cost();
+        if (c == input.draggingCard()) {
+            shapes.setColor(0.55f, 0.42f, 0.20f, 1f);
+        } else if (playable) {
+            shapes.setColor(0.24f, 0.20f, 0.14f, 1f);
+        } else {
+            shapes.setColor(0.15f, 0.12f, 0.10f, 1f);
+        }
+        shapes.rect(r.x, r.y, r.width, r.height);
+    }
+
     private void drawShapes() {
         shapes.setProjectionMatrix(ctx.camera.combined);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
@@ -362,19 +380,15 @@ public class CombatScreen implements GameScreen, InputConsumer {
             drawPowerChipShapes(state.player, playerBox);
         }
 
-        int n = state.hand.size();
-        for (int i = 0; i < n; i++) {
-            AbstractCard c = state.hand.get(i);
-            Rectangle r = cardRect(c);
-            boolean playable = state.energy >= c.cost();
-            if (c == input.draggingCard()) {
-                shapes.setColor(0.55f, 0.42f, 0.20f, 1f);
-            } else if (playable) {
-                shapes.setColor(0.24f, 0.20f, 0.14f, 1f);
-            } else {
-                shapes.setColor(0.15f, 0.12f, 0.10f, 1f);
+        // Draw the picked-up card last so it stays in front of the others.
+        AbstractCard dragging = input.draggingCard();
+        for (AbstractCard c : state.hand) {
+            if (c != dragging) {
+                drawCardShape(c);
             }
-            shapes.rect(r.x, r.y, r.width, r.height);
+        }
+        if (dragging != null && state.hand.contains(dragging)) {
+            drawCardShape(dragging);
         }
 
         // Flying (played/discarded) cards shrinking along their bezier path.
@@ -519,9 +533,14 @@ public class CombatScreen implements GameScreen, InputConsumer {
         drawPowerChipLabels(state.player, playerBox, font);
 
         font.getData().setScale(1.3f);
+        AbstractCard draggingForLabel = input.draggingCard();
         for (AbstractCard c : state.hand) {
-            Rectangle r = cardRect(c);
-            text(font, "(" + c.cost() + ") " + c.name, r.x + 12, r.y + r.height - 22);
+            if (c != draggingForLabel) {
+                drawCardLabel(c, font);
+            }
+        }
+        if (draggingForLabel != null && state.hand.contains(draggingForLabel)) {
+            drawCardLabel(draggingForLabel, font);
         }
         for (FlyingCard f : flying) {
             font.setColor(1f, 1f, 1f, 1f - f.p());
